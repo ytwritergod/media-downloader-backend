@@ -1,35 +1,37 @@
+const express = require('express');
+const { exec } = require('child_process');
+const cors = require('cors');
 
-const express = require("express");
-const cors = require("cors");
-const { execFile } = require("child_process");
 const app = express();
+const port = process.env.PORT || 10000;
 
 app.use(cors());
-app.use(express.json());
 
-app.get("/api/download", (req, res) => {
-  const { url, format } = req.query;
+app.get('/api/download', (req, res) => {
+    const url = req.query.url;
+    const format = req.query.format || 'mp4';
 
-  if (!url) return res.status(400).json({ error: "URL required" });
+    if (!url) {
+        return res.status(400).json({ error: 'No URL provided' });
+    }
 
-  const args = [
-    "-f",
-    format === "mp3" ? "bestaudio" : "best",
-    "-J",
-    url
-  ];
+    const command = `/usr/local/bin/yt-dlp -f ${format} -g "${url}"`;
 
-  execFile("yt-dlp", args, (err, stdout) => {
-    if (err) return res.status(500).json({ error: err.message });
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error:', error.message);
+            return res.status(500).json({ error: error.message });
+        }
 
-    const info = JSON.parse(stdout);
-    const best = info.formats
-      .filter((f) => f.ext === (format || "mp4"))
-      .sort((a, b) => (b.filesize || 0) - (a.filesize || 0))[0];
+        if (stderr) {
+            console.error('stderr:', stderr);
+        }
 
-    res.json({ title: info.title, downloadUrl: best?.url });
-  });
+        const downloadUrl = stdout.trim();
+        res.json({ url: downloadUrl });
+    });
 });
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
